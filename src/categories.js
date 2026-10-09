@@ -1,12 +1,24 @@
 // Ticket types shown in the panel's dropdown. Each one opens a form with its own questions
 // (Discord allows at most 5 questions per form, and a form title of at most 45 characters).
-// `key` is used in channel names, so keep it short, lowercase and unique.
+// `key` is used in thread names, so keep it short, lowercase and unique.
+// `description` is shown in the dropdown (max 100 characters); `guide` is the longer explanation
+// a member sees after picking the type, before filling in the form.
 module.exports = [
   {
     key: 'sanal',
     label: 'Санал хүсэлт',
     emoji: '📩',
     description: 'Серверийг сайжруулах санал, шинэ санаа, хүсэлт байвал энд бичнэ үү.',
+    guide: [
+      'Серверийг илүү сайн болгоход таны санал бидэнд маш чухал. 💡',
+      '',
+      '**✍️ Юу бичих вэ?**',
+      '• Ямар зүйлийг нэмэх, өөрчлөх, сайжруулах вэ',
+      '• Яагаад энэ нь хэрэгтэй гэж бодож байна вэ',
+      '• Жишээ, зураг байвал ticket нээгдсэний дараа хавсаргаарай',
+      '',
+      'Таны санал бүрийг админ баг уншиж, хэлэлцэнэ.',
+    ],
     formTitle: 'САНАЛ ХҮСЭЛТ',
     questions: [
       { id: 'idea', label: 'Санал хүсэлтээ тодорхой бичнэ үү', placeholder: 'санал хүсэлт' },
@@ -17,6 +29,16 @@ module.exports = [
     label: 'Unban хүсэлт',
     emoji: '🚫',
     description: 'Ban авсан бол шалтгаанаа тайлбарлаж, дахин шалгуулах хүсэлт илгээнэ үү.',
+    guide: [
+      'Ban-аа дахин шалгуулах хүсэлт илгээх гэж байна. 🔍',
+      '',
+      '**📋 Бэлдэх зүйлс**',
+      '• Тоглоомын нэр',
+      '• Ban авсан шалтгаан (мэдэж байгаа бол)',
+      '• Яагаад unban хийх ёстой гэж үзэж байгаагаа тайлбарлах',
+      '',
+      'Үнэн зөв, тодорхой бичсэн хүсэлтийг илүү хурдан шалгадаг.',
+    ],
     formTitle: 'UNBAN ХҮСЭЛТ',
     questions: [
       { id: 'nickname', label: 'Тоглоомын нэр', style: 'short' },
@@ -29,6 +51,16 @@ module.exports = [
     label: 'Гомдол',
     emoji: '🚨',
     description: 'Хэрэглэгч эсвэл админтай холбоотой асуудал, зөрчлийг дэлгэрэнгүй бичиж илгээнэ үү.',
+    guide: [
+      'Хэрэглэгч эсвэл админы зөрчлийн талаар гомдол гаргах гэж байна. 🚨',
+      '',
+      '**📋 Бэлдэх зүйлс**',
+      '• Гомдол гаргаж буй хүний STEAM link эсвэл нэр',
+      '• Юу болсон, хэзээ болсон',
+      '• Screenshot, бичлэг байвал ticket нээгдсэний дараа thread-д хавсаргана уу',
+      '',
+      'Таны ticket зөвхөн танд болон админ багт харагдана.',
+    ],
     formTitle: 'САНАЛ ГОМДОЛ',
     questions: [
       { id: 'target', label: 'Та хэнд гомдол гаргаж байна вэ?', placeholder: 'STEAM Account Link аль эсвэл Нэр' },
@@ -40,6 +72,13 @@ module.exports = [
     label: 'Сервер түрээс',
     emoji: '🎮',
     description: 'Сервер түрээстэй холбоотой асуудал байвал дэлгэрэнгүй бичин илгээнэ үү.',
+    guide: [
+      'Сервер түрээстэй холбоотой асуулт, асуудал байвал энд бичнэ үү. 🎮',
+      '',
+      '**📋 Бэлдэх зүйлс**',
+      '• Ямар сервер, ямар асуудал гарч байгаа',
+      '• Алдаа гарч байвал screenshot-оо ticket нээгдсэний дараа хавсаргана уу',
+    ],
     formTitle: 'СЕРВЕР ТҮРЭЭС',
     questions: [
       { id: 'details', label: 'Асуудлаа дэлгэрэнгүй бичнэ үү', style: 'paragraph' },
@@ -50,6 +89,20 @@ module.exports = [
     label: 'Админ авах',
     emoji: '🛡️',
     description: 'Админ авах хүсэлт илгээх бол энд даран анкет бөглөнө үү.',
+    guide: [
+      'LANN GAMING-ийн админ багт нэгдэх хүсэлт. 🛡️',
+      '',
+      '**💰 Админы төрлүүд**',
+      '• TEST ADMIN — 100,000₮',
+      '• ROYAL ADMIN — Нууц',
+      '',
+      '**📋 Бэлдэх зүйлс**',
+      '• Тоглодог нэр, нас',
+      '• STEAM account link',
+      '• Админ авах сервер (MATCH, PUBLIC, RETAKE, KZ, SURF, HNS)',
+      '',
+      'Анкетаа илгээсний дараа админ баг тантай ticket дотор холбогдоно.',
+    ],
     formTitle: 'TEST ADMIN - 100,000₮ ROYAL ADMIN - Нууц',
     questions: [
       { id: 'type', label: 'Та ямар админ авах вэ?', placeholder: 'ROYAL, TEST....' },

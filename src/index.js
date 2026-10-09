@@ -43,7 +43,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     console.error(error);
     if (!interaction.isRepliable()) return;
-    const content = 'Алдаа гарлаа. Дахин оролдоно уу, эсвэл админд хандана уу.';
+    const content = '❌ Уучлаарай, алдаа гарлаа. Хэсэг хугацааны дараа дахин оролдоно уу. Асуудал давтагдвал админд хандана уу.';
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
     } else {

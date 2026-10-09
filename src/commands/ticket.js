@@ -36,30 +36,30 @@ module.exports = {
     const ticket = await getTicket(channel);
     const ephemeral = (content) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
-    if (!ticket) return ephemeral('Энэ командыг зөвхөн ticket thread дотор ашиглана.');
+    if (!ticket) return ephemeral('ℹ️ Энэ командыг зөвхөн ticket thread дотор ашиглана.');
     const { ownerId } = ticket;
 
     if (sub === 'close') {
       if (!isStaff(member) && member.id !== ownerId) {
-        return ephemeral('Зөвхөн админ эсвэл ticket нээсэн хүн хаах боломжтой.');
+        return ephemeral('⛔ Зөвхөн админ баг эсвэл ticket нээсэн хүн ticket-ийг хаах боломжтой.');
       }
-      await interaction.reply('Ticket хааж байна...');
+      await interaction.reply('🔒 Ticket хааж байна...');
       return closeTicket(channel, interaction.user, options.getString('reason') ?? undefined);
     }
 
-    if (!isStaff(member)) return ephemeral('Үүнийг зөвхөн админ баг хийх боломжтой.');
+    if (!isStaff(member)) return ephemeral('⛔ Үүнийг зөвхөн админ баг хийх боломжтой.');
 
     if (sub === 'add') {
       const user = options.getUser('user');
       await channel.members.add(user.id);
-      return interaction.reply(`${user}-г ticket-д нэмлээ.`);
+      return interaction.reply(`➕ ${user}-г ticket-д нэмлээ. Одоо тэр энэ thread-ийг харж, бичих боломжтой.`);
     }
 
     if (sub === 'remove') {
       const user = options.getUser('user');
-      if (user.id === ownerId) return ephemeral('Ticket нээсэн хүнийг хасах боломжгүй. Оронд нь ticket-ийг хаана уу.');
+      if (user.id === ownerId) return ephemeral('⛔ Ticket нээсэн хүнийг хасах боломжгүй. Шаардлагатай бол ticket-ийг хаана уу.');
       await channel.members.remove(user.id);
-      return interaction.reply(`${user}-г ticket-ээс хаслаа.`);
+      return interaction.reply(`➖ ${user}-г ticket-ээс хаслаа.`);
     }
 
     if (sub === 'rename') {
@@ -67,7 +67,7 @@ module.exports = {
       // Discord only allows 2 renames per 10 minutes, so this can be slow; defer to avoid timing out.
       await interaction.deferReply();
       await channel.setName(name);
-      return interaction.editReply(`Ticket-ийн нэрийг **${channel.name}** болгож солилоо.`);
+      return interaction.editReply(`✏️ Ticket-ийн нэрийг **${channel.name}** болгож солилоо.`);
     }
   },
 };
