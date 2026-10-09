@@ -20,7 +20,7 @@ module.exports = {
     const category = getCategory(interaction.values[0]);
     if (!category) return;
     const existing = findOpenTicket(interaction.guild, interaction.user.id, category.key);
-    if (!settings.supportRoleId) {
+    if (!settings.supportRoleIds.length) {
       await interaction.reply({
         content: 'Ticket систем тохируулагдаагүй байна. Админ `/ticket-setup` командыг ажиллуулна уу.',
         flags: MessageFlags.Ephemeral,

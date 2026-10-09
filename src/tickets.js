@@ -77,7 +77,7 @@ function findOpenTicket(guild, userId, categoryKey) {
 
 function isStaff(member) {
   return (
-    member.roles.cache.has(settings.supportRoleId) ||
+    settings.supportRoleIds.some((id) => member.roles.cache.has(id)) ||
     member.permissions.has(PermissionFlagsBits.ManageThreads)
   );
 }
@@ -166,8 +166,8 @@ function ticketControls({ claimedBy } = {}) {
 // `answers` is a list of { label, value } from the category's form.
 async function openTicket(interaction, category, answers) {
   const { channel: parent, guild, user } = interaction;
-  const { supportRoleId } = settings;
-  if (!supportRoleId) {
+  const { supportRoleIds } = settings;
+  if (!supportRoleIds.length) {
     return interaction.editReply('Ticket систем тохируулагдаагүй байна. Админ `/ticket-setup` командыг ажиллуулна уу.');
   }
 
@@ -203,12 +203,12 @@ async function openTicket(interaction, category, answers) {
       .setFooter({ text: `ticket:${user.id}:${category.key}` })
       .setTimestamp();
 
-    // Mentioning the support role also adds its members to the private thread.
+    // Mentioning the support roles also adds their members to the private thread.
     await thread.send({
-      content: `${user} <@&${supportRoleId}>`,
+      content: [user, ...supportRoleIds.map((id) => `<@&${id}>`)].join(' '),
       embeds: [embed],
       components: [ticketControls()],
-      allowedMentions: { users: [user.id], roles: [supportRoleId] },
+      allowedMentions: { users: [user.id], roles: supportRoleIds },
     });
 
     return interaction.editReply(`Таны ticket үүслээ: ${thread}`);

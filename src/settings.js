@@ -13,8 +13,10 @@ try {
 }
 
 module.exports = {
-  get supportRoleId() {
-    return settings.supportRoleId ?? null;
+  // Roles that are mentioned in every new ticket and can manage tickets.
+  get supportRoleIds() {
+    // Older settings files stored a single supportRoleId.
+    return settings.supportRoleIds ?? (settings.supportRoleId ? [settings.supportRoleId] : []);
   },
   get logChannelId() {
     return settings.logChannelId ?? null;

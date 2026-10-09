@@ -6,26 +6,41 @@ const {
 } = require('discord.js');
 const settings = require('../settings');
 
+const MAX_ROLES = 5;
+
+const data = new SlashCommandBuilder()
+  .setName('ticket-setup')
+  .setDescription('Ticket системийг тохируулах')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
+// Discord has no multi-role option, so offer role_1 (required) up to role_5.
+for (let i = 1; i <= MAX_ROLES; i++) {
+  data.addRoleOption((o) =>
+    o
+      .setName(`role_${i}`)
+      .setDescription('Ticket нээгдэхэд mention хийгдэж, ticket-ийг удирдах админ role')
+      .setRequired(i === 1),
+  );
+}
+data.addChannelOption((o) =>
+  o
+    .setName('log_channel')
+    .setDescription('Хаагдсан ticket-ийн бичлэг очих суваг')
+    .addChannelTypes(ChannelType.GuildText),
+);
+
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('ticket-setup')
-    .setDescription('Ticket системийг тохируулах')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addRoleOption((o) =>
-      o.setName('support_role').setDescription('Ticket-үүдийг харж, удирдах админ role').setRequired(true),
-    )
-    .addChannelOption((o) =>
-      o
-        .setName('log_channel')
-        .setDescription('Хаагдсан ticket-ийн бичлэг очих суваг')
-        .addChannelTypes(ChannelType.GuildText),
-    ),
+  data,
 
   async execute(interaction) {
-    const role = interaction.options.getRole('support_role');
+    const roles = [];
+    for (let i = 1; i <= MAX_ROLES; i++) {
+      const role = interaction.options.getRole(`role_${i}`);
+      if (role && !roles.some((r) => r.id === role.id)) roles.push(role);
+    }
     const logChannel = interaction.options.getChannel('log_channel');
 
-    if (role.id === interaction.guild.roles.everyone.id) {
+    if (roles.some((r) => r.id === interaction.guild.roles.everyone.id)) {
       return interaction.reply({
         content: '@everyone-ийг админ role болгох боломжгүй.',
         flags: MessageFlags.Ephemeral,
@@ -33,21 +48,22 @@ module.exports = {
     }
 
     settings.update({
-      supportRoleId: role.id,
+      supportRoleIds: roles.map((r) => r.id),
       ...(logChannel && { logChannelId: logChannel.id }),
     });
 
     const lines = [
       '✅ Ticket систем тохируулагдлаа.',
-      `Админ role: ${role}`,
+      `Админ role-ууд: ${roles.join(', ')}`,
       `Log суваг: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'тохируулаагүй'}`,
     ];
     // The ping in each new ticket is what adds the support team to the private thread.
-    if (!role.mentionable) {
+    const unmentionable = roles.filter((r) => !r.mentionable);
+    if (unmentionable.length) {
       lines.push(
         '',
-        '⚠️ Энэ role-ийг ping хийх боломжгүй байна, тиймээс админууд ticket thread-д автоматаар нэмэгдэхгүй. ' +
-          'Server Settings → Roles → энэ role → **Allow anyone to @mention this role**-ийг асаана уу.',
+        `⚠️ ${unmentionable.join(', ')} role-ийг ping хийх боломжгүй тул ticket thread-д автоматаар нэмэгдэхгүй. ` +
+          'Server Settings → Roles → тухайн role → **Allow anyone to @mention this role**-ийг асаана уу.',
       );
     }
 
