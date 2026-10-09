@@ -2,13 +2,13 @@
 
 A Discord ticket support bot built with [discord.js](https://discord.js.org) v14.
 
-Members click **Open Ticket**, describe their issue, and get a private channel that only they and the support team can see. Staff can claim, add people, rename and close tickets. When a ticket closes, a text transcript is posted to a log channel and DM'd to the person who opened it.
+Members pick a ticket type from a dropdown, fill in a short form, and get a private channel that only they and the support team can see. Staff can claim, add people, rename and close tickets. When a ticket closes, a text transcript is posted to a log channel and DM'd to the person who opened it.
 
 ## Features
 
-- Ticket panel with an **Open Ticket** button and a reason form
+- Ticket panel (in Mongolian) with a dropdown of ticket types, each with its own form: Санал хүсэлт, Unban хүсэлт, Гомдол, Сервер түрээс, Админ авах. Edit them in `src/categories.js`.
 - Private ticket channels under a category you choose
-- One open ticket per member
+- One open ticket per member per type
 - **Claim** and **Close** buttons inside each ticket (close asks for confirmation)
 - Transcripts of closed tickets sent to a log channel and the ticket owner
 - No database needed: ticket ownership is stored in the channel topic
@@ -17,7 +17,7 @@ Members click **Open Ticket**, describe their issue, and get a private channel t
 
 | Command | Who | What it does |
 | --- | --- | --- |
-| `/ticket-panel [channel]` | Manage Server | Posts the Open Ticket panel |
+| `/ticket-panel [channel]` | Manage Server | Posts the ticket panel |
 | `/ticket add <user>` | Support staff | Gives a user access to the ticket |
 | `/ticket remove <user>` | Support staff | Removes a user from the ticket |
 | `/ticket rename <name>` | Support staff | Renames the ticket channel |

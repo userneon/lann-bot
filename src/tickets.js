@@ -5,24 +5,37 @@ const {
   ButtonStyle,
   ChannelType,
   EmbedBuilder,
+  ModalBuilder,
   PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require('discord.js');
 const config = require('./config');
+const categories = require('./categories');
 
-// The ticket owner's ID is stored in the channel topic so tickets survive bot restarts
-// without needing a database.
-const TOPIC_PREFIX = 'ticket-owner:';
+// The ticket owner's ID and category are stored in the channel topic so tickets survive
+// bot restarts without needing a database.
+const TOPIC_PATTERN = /^ticket-owner:(\d+):(\w+)/;
 const COLOR = 0x5865f2;
 
-// Users whose ticket is currently being created, to stop double-clicks making two channels.
+// Tickets currently being created, to stop double-submits making two channels.
 const opening = new Set();
 // Channels currently being closed, so two close clicks don't post two transcripts.
 const closing = new Set();
 
-function getTicketOwnerId(channel) {
+function getCategory(key) {
+  return categories.find((c) => c.key === key);
+}
+
+function parseTopic(channel) {
   if (!channel || channel.parentId !== config.categoryId) return null;
-  const match = channel.topic?.match(/^ticket-owner:(\d+)/);
-  return match ? match[1] : null;
+  const match = channel.topic?.match(TOPIC_PATTERN);
+  return match ? { ownerId: match[1], categoryKey: match[2] } : null;
+}
+
+function getTicketOwnerId(channel) {
+  return parseTopic(channel)?.ownerId ?? null;
 }
 
 function isStaff(member) {
@@ -35,53 +48,93 @@ function isStaff(member) {
 function panelMessage() {
   const embed = new EmbedBuilder()
     .setColor(COLOR)
-    .setTitle('Need help?')
-    .setDescription('Click the button below to open a private ticket with our support team.');
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('ticket:open')
-      .setLabel('Open Ticket')
-      .setEmoji('🎫')
-      .setStyle(ButtonStyle.Primary),
-  );
-  return { embeds: [embed], components: [row] };
+    .setTitle('🛡️ Манай серверийн албан ёсны тусламжийн сувагт тавтай морилно уу')
+    .setDescription(
+      [
+        '```',
+        '╔════════════════════════════╗',
+        '         LANN GAMING',
+        '        TICKET SYSTEM',
+        '╚════════════════════════════╝',
+        '```',
+        'Та доорх цэснээс өөрийн асуудалд тохирох ticket-ийг сонгон нээж, манай админ багтай холбогдоно уу.',
+      ].join('\n'),
+    );
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('ticket:select')
+    .setPlaceholder('Ticket-ийн төрлөө сонгоно уу')
+    .addOptions(
+      categories.map((c) => ({
+        label: c.label,
+        description: c.description,
+        emoji: c.emoji,
+        value: c.key,
+      })),
+    );
+
+  return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] };
+}
+
+function ticketModal(category) {
+  return new ModalBuilder()
+    .setCustomId(`ticket:submit:${category.key}`)
+    .setTitle(category.label)
+    .addComponents(
+      category.questions.map((q) =>
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId(q.id)
+            .setLabel(q.label)
+            .setStyle(q.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+            .setMaxLength(q.style === 'paragraph' ? 1000 : 100)
+            .setRequired(true),
+        ),
+      ),
+    );
 }
 
 function ticketControls({ claimedBy } = {}) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('ticket:claim')
-      .setLabel(claimedBy ? `Claimed by ${claimedBy}` : 'Claim')
+      .setLabel(claimedBy ? `${claimedBy} хариуцаж байна` : 'Хариуцах')
       .setEmoji('🙋')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(Boolean(claimedBy)),
     new ButtonBuilder()
       .setCustomId('ticket:close')
-      .setLabel('Close')
+      .setLabel('Хаах')
       .setEmoji('🔒')
       .setStyle(ButtonStyle.Danger),
   );
 }
 
-async function openTicket(interaction, reason) {
+// `answers` is a list of { label, value } from the category's form.
+async function openTicket(interaction, category, answers) {
   const { guild, user } = interaction;
 
-  const existing = guild.channels.cache.find((c) => getTicketOwnerId(c) === user.id);
+  // Members can have one open ticket per category.
+  const existing = guild.channels.cache.find((c) => {
+    const t = parseTopic(c);
+    return t?.ownerId === user.id && t.categoryKey === category.key;
+  });
   if (existing) {
-    return interaction.editReply(`You already have an open ticket: ${existing}`);
+    return interaction.editReply(`Танд энэ төрлийн нээлттэй ticket байна: ${existing}`);
   }
-  if (opening.has(user.id)) {
-    return interaction.editReply('Your ticket is already being created.');
+  const lockKey = `${user.id}:${category.key}`;
+  if (opening.has(lockKey)) {
+    return interaction.editReply('Таны ticket үүсгэгдэж байна.');
   }
 
-  opening.add(user.id);
+  opening.add(lockKey);
   try {
-    const name = `ticket-${user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
+    const username = user.username.toLowerCase().replace(/[^a-z0-9-]/g, '') || user.id;
     const channel = await guild.channels.create({
-      name,
+      name: `${category.key}-${username}`.slice(0, 90),
       type: ChannelType.GuildText,
       parent: config.categoryId,
-      topic: `${TOPIC_PREFIX}${user.id} | ${reason}`.slice(0, 1024),
+      topic: `ticket-owner:${user.id}:${category.key} | ${category.label}`,
       permissionOverwrites: [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
         {
@@ -121,12 +174,9 @@ async function openTicket(interaction, reason) {
 
     const embed = new EmbedBuilder()
       .setColor(COLOR)
-      .setTitle('Ticket opened')
-      .setDescription(
-        `Thanks ${user}, a member of the support team will be with you shortly.\n` +
-          'Please describe your issue in as much detail as you can.',
-      )
-      .addFields({ name: 'Reason', value: reason })
+      .setTitle(`${category.emoji} ${category.label}`)
+      .setDescription(`Сайн байна уу ${user}, манай админ баг удахгүй тантай холбогдох болно.`)
+      .addFields(answers.map((a) => ({ name: a.label, value: a.value })))
       .setTimestamp();
 
     await channel.send({
@@ -136,9 +186,9 @@ async function openTicket(interaction, reason) {
       allowedMentions: { users: [user.id], roles: [config.supportRoleId] },
     });
 
-    return interaction.editReply(`Your ticket has been created: ${channel}`);
+    return interaction.editReply(`Таны ticket үүслээ: ${channel}`);
   } finally {
-    opening.delete(user.id);
+    opening.delete(lockKey);
   }
 }
 
@@ -156,7 +206,10 @@ async function buildTranscript(channel) {
   const lines = messages.map((m) => {
     const time = m.createdAt.toISOString().replace('T', ' ').slice(0, 19);
     const parts = [m.content];
-    for (const e of m.embeds) parts.push(`[embed] ${[e.title, e.description].filter(Boolean).join(' - ')}`);
+    for (const e of m.embeds) {
+      const fields = e.fields.map((f) => `${f.name}: ${f.value}`);
+      parts.push(`[embed] ${[e.title, e.description, ...fields].filter(Boolean).join(' | ')}`);
+    }
     for (const a of m.attachments.values()) parts.push(`[attachment] ${a.url}`);
     return `[${time} UTC] ${m.author.tag}: ${parts.filter(Boolean).join(' ')}`;
   });
@@ -167,22 +220,24 @@ async function buildTranscript(channel) {
   });
 }
 
-async function closeTicket(channel, closedBy, reason = 'No reason given') {
+async function closeTicket(channel, closedBy, reason = 'Шалтгаан заагаагүй') {
   if (closing.has(channel.id)) return;
   closing.add(channel.id);
 
-  const ownerId = getTicketOwnerId(channel);
-  await channel.send(`🔒 Ticket closed by ${closedBy}. This channel will be deleted in 5 seconds.`);
+  const ticket = parseTopic(channel);
+  const category = ticket && getCategory(ticket.categoryKey);
+  await channel.send(`🔒 ${closedBy} ticket-ийг хаалаа. Энэ суваг 5 секундын дараа устгагдана.`);
 
   const transcript = await buildTranscript(channel);
   const embed = new EmbedBuilder()
     .setColor(0xed4245)
-    .setTitle('Ticket closed')
+    .setTitle('Ticket хаагдлаа')
     .addFields(
       { name: 'Ticket', value: channel.name, inline: true },
-      { name: 'Opened by', value: ownerId ? `<@${ownerId}>` : 'Unknown', inline: true },
-      { name: 'Closed by', value: `${closedBy}`, inline: true },
-      { name: 'Reason', value: reason },
+      { name: 'Төрөл', value: category?.label ?? '-', inline: true },
+      { name: 'Нээсэн', value: ticket ? `<@${ticket.ownerId}>` : '-', inline: true },
+      { name: 'Хаасан', value: `${closedBy}`, inline: true },
+      { name: 'Шалтгаан', value: reason },
     )
     .setTimestamp();
 
@@ -193,8 +248,8 @@ async function closeTicket(channel, closedBy, reason = 'No reason given') {
     }
   }
 
-  if (ownerId) {
-    const owner = await channel.client.users.fetch(ownerId).catch(() => null);
+  if (ticket) {
+    const owner = await channel.client.users.fetch(ticket.ownerId).catch(() => null);
     // DMs fail if the user has them disabled; that's fine.
     await owner?.send({ embeds: [embed], files: [transcript] }).catch(() => {});
   }
@@ -208,9 +263,11 @@ async function closeTicket(channel, closedBy, reason = 'No reason given') {
 }
 
 module.exports = {
+  getCategory,
   getTicketOwnerId,
   isStaff,
   panelMessage,
+  ticketModal,
   ticketControls,
   openTicket,
   closeTicket,

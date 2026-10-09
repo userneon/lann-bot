@@ -4,30 +4,30 @@ const { getTicketOwnerId, isStaff, closeTicket } = require('../tickets');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket')
-    .setDescription('Manage the current ticket')
+    .setDescription('Энэ ticket-ийг удирдах')
     .addSubcommand((s) =>
       s
         .setName('add')
-        .setDescription('Add a user to this ticket')
-        .addUserOption((o) => o.setName('user').setDescription('User to add').setRequired(true)),
+        .setDescription('Ticket-д хэрэглэгч нэмэх')
+        .addUserOption((o) => o.setName('user').setDescription('Нэмэх хэрэглэгч').setRequired(true)),
     )
     .addSubcommand((s) =>
       s
         .setName('remove')
-        .setDescription('Remove a user from this ticket')
-        .addUserOption((o) => o.setName('user').setDescription('User to remove').setRequired(true)),
+        .setDescription('Ticket-ээс хэрэглэгч хасах')
+        .addUserOption((o) => o.setName('user').setDescription('Хасах хэрэглэгч').setRequired(true)),
     )
     .addSubcommand((s) =>
       s
         .setName('rename')
-        .setDescription('Rename this ticket')
-        .addStringOption((o) => o.setName('name').setDescription('New channel name').setRequired(true).setMaxLength(90)),
+        .setDescription('Ticket-ийн нэрийг солих')
+        .addStringOption((o) => o.setName('name').setDescription('Шинэ нэр').setRequired(true).setMaxLength(90)),
     )
     .addSubcommand((s) =>
       s
         .setName('close')
-        .setDescription('Close this ticket')
-        .addStringOption((o) => o.setName('reason').setDescription('Why the ticket is being closed').setMaxLength(500)),
+        .setDescription('Ticket-ийг хаах')
+        .addStringOption((o) => o.setName('reason').setDescription('Хаах шалтгаан').setMaxLength(500)),
     ),
 
   async execute(interaction) {
@@ -36,17 +36,17 @@ module.exports = {
     const ownerId = getTicketOwnerId(channel);
     const ephemeral = (content) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
-    if (!ownerId) return ephemeral('This command can only be used inside a ticket channel.');
+    if (!ownerId) return ephemeral('Энэ командыг зөвхөн ticket сувагт ашиглана.');
 
     if (sub === 'close') {
       if (!isStaff(member) && member.id !== ownerId) {
-        return ephemeral('Only staff or the ticket owner can close this ticket.');
+        return ephemeral('Зөвхөн админ эсвэл ticket нээсэн хүн хаах боломжтой.');
       }
-      await interaction.reply('Closing ticket...');
+      await interaction.reply('Ticket хааж байна...');
       return closeTicket(channel, interaction.user, options.getString('reason') ?? undefined);
     }
 
-    if (!isStaff(member)) return ephemeral('Only support staff can do that.');
+    if (!isStaff(member)) return ephemeral('Үүнийг зөвхөн админ баг хийх боломжтой.');
 
     if (sub === 'add') {
       const user = options.getUser('user');
@@ -57,14 +57,14 @@ module.exports = {
         AttachFiles: true,
         EmbedLinks: true,
       });
-      return interaction.reply(`Added ${user} to the ticket.`);
+      return interaction.reply(`${user}-г ticket-д нэмлээ.`);
     }
 
     if (sub === 'remove') {
       const user = options.getUser('user');
-      if (user.id === ownerId) return ephemeral("You can't remove the ticket owner. Close the ticket instead.");
+      if (user.id === ownerId) return ephemeral('Ticket нээсэн хүнийг хасах боломжгүй. Оронд нь ticket-ийг хаана уу.');
       await channel.permissionOverwrites.delete(user);
-      return interaction.reply(`Removed ${user} from the ticket.`);
+      return interaction.reply(`${user}-г ticket-ээс хаслаа.`);
     }
 
     if (sub === 'rename') {
@@ -72,7 +72,7 @@ module.exports = {
       // Discord only allows 2 channel renames per 10 minutes, so this can be slow; defer to avoid timing out.
       await interaction.deferReply();
       await channel.setName(name);
-      return interaction.editReply(`Ticket renamed to **${channel.name}**.`);
+      return interaction.editReply(`Ticket-ийн нэрийг **${channel.name}** болгож солилоо.`);
     }
   },
 };

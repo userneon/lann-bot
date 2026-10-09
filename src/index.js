@@ -30,14 +30,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) await command.execute(interaction);
-    } else if (interaction.isButton() || interaction.isModalSubmit()) {
-      const handler = components[interaction.customId];
-      if (handler) await handler(interaction);
+    } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+      const [scope, action, arg] = interaction.customId.split(':');
+      const handler = components[`${scope}:${action}`];
+      if (handler) await handler(interaction, arg);
     }
   } catch (error) {
     console.error(error);
     if (!interaction.isRepliable()) return;
-    const content = 'Something went wrong while handling that. Check the bot has the permissions it needs.';
+    const content = 'Алдаа гарлаа. Дахин оролдоно уу, эсвэл админд хандана уу.';
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
     } else {
