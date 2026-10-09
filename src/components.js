@@ -2,7 +2,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('
 const {
   getCategory,
   findOpenTicket,
-  getTicketOwnerId,
+  getTicket,
   isStaff,
   panelMessage,
   categoryPrompt,
@@ -57,8 +57,8 @@ module.exports = {
   },
 
   'ticket:close': async (interaction) => {
-    const ownerId = getTicketOwnerId(interaction.channel);
-    if (!isStaff(interaction.member) && interaction.user.id !== ownerId) {
+    const ticket = await getTicket(interaction.channel);
+    if (!isStaff(interaction.member) && interaction.user.id !== ticket?.ownerId) {
       return interaction.reply({
         content: 'Зөвхөн админ эсвэл ticket нээсэн хүн хаах боломжтой.',
         flags: MessageFlags.Ephemeral,

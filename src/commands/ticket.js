@@ -1,5 +1,5 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { getTicketOwnerId, isStaff, closeTicket } = require('../tickets');
+const { getTicket, isStaff, closeTicket } = require('../tickets');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -33,10 +33,11 @@ module.exports = {
   async execute(interaction) {
     const { channel, member, options } = interaction;
     const sub = options.getSubcommand();
-    const ownerId = getTicketOwnerId(channel);
+    const ticket = await getTicket(channel);
     const ephemeral = (content) => interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
-    if (!ownerId) return ephemeral('Энэ командыг зөвхөн ticket сувагт ашиглана.');
+    if (!ticket) return ephemeral('Энэ командыг зөвхөн ticket thread дотор ашиглана.');
+    const { ownerId } = ticket;
 
     if (sub === 'close') {
       if (!isStaff(member) && member.id !== ownerId) {
@@ -50,26 +51,20 @@ module.exports = {
 
     if (sub === 'add') {
       const user = options.getUser('user');
-      await channel.permissionOverwrites.edit(user, {
-        ViewChannel: true,
-        SendMessages: true,
-        ReadMessageHistory: true,
-        AttachFiles: true,
-        EmbedLinks: true,
-      });
+      await channel.members.add(user.id);
       return interaction.reply(`${user}-г ticket-д нэмлээ.`);
     }
 
     if (sub === 'remove') {
       const user = options.getUser('user');
       if (user.id === ownerId) return ephemeral('Ticket нээсэн хүнийг хасах боломжгүй. Оронд нь ticket-ийг хаана уу.');
-      await channel.permissionOverwrites.delete(user);
+      await channel.members.remove(user.id);
       return interaction.reply(`${user}-г ticket-ээс хаслаа.`);
     }
 
     if (sub === 'rename') {
       const name = options.getString('name').toLowerCase().replace(/\s+/g, '-');
-      // Discord only allows 2 channel renames per 10 minutes, so this can be slow; defer to avoid timing out.
+      // Discord only allows 2 renames per 10 minutes, so this can be slow; defer to avoid timing out.
       await interaction.deferReply();
       await channel.setName(name);
       return interaction.editReply(`Ticket-ийн нэрийг **${channel.name}** болгож солилоо.`);

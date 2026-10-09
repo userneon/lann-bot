@@ -2,12 +2,12 @@
 
 A Discord ticket support bot built with [discord.js](https://discord.js.org) v14.
 
-Members pick a ticket type from a dropdown, fill in a short form, and get a private channel that only they and the support team can see. Staff can claim, add people, rename and close tickets. When a ticket closes, a text transcript is posted to a log channel and DM'd to the person who opened it.
+Members pick a ticket type from a dropdown, fill in a short form, and get a private thread in the panel's channel that only they and the support team can see. Staff can claim, add people, rename and close tickets. When a ticket closes, a text transcript is posted to a log channel and DM'd to the person who opened it.
 
 ## Features
 
 - Ticket panel (in Mongolian) with a dropdown of ticket types, each with its own form: Санал хүсэлт, Unban хүсэлт, Гомдол, Сервер түрээс, Админ авах. Edit them in `src/categories.js`.
-- Private ticket channels under a category you choose
+- Tickets are private threads, so no category or extra channels are needed
 - One open ticket per member per type
 - **Claim** and **Close** buttons inside each ticket (close asks for confirmation)
 - Transcripts of closed tickets sent to a log channel and the ticket owner
@@ -23,7 +23,7 @@ Members pick a ticket type from a dropdown, fill in a short form, and get a priv
 | `/ticket rename <name>` | Support staff | Renames the ticket channel |
 | `/ticket close [reason]` | Staff or ticket owner | Closes the ticket |
 
-"Support staff" means anyone with the support role or the Manage Channels permission.
+"Support staff" means anyone with the support role or the Manage Threads permission.
 
 ## Setup
 
@@ -32,12 +32,15 @@ Members pick a ticket type from a dropdown, fill in a short form, and get a priv
 2. **Invite it** with this URL, replacing `YOUR_CLIENT_ID`:
 
    ```
-   https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=268553232&scope=bot+applications.commands
+   https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=360777370624&scope=bot+applications.commands
    ```
 
-   That grants View Channels, Send Messages, Manage Channels, Manage Roles, Read Message History, Embed Links and Attach Files.
+   That grants View Channels, Send Messages, Send Messages in Threads, Create Private Threads, Manage Threads, Read Message History, Embed Links and Attach Files.
 
-3. **Prepare your server.** Create a support role and a category for tickets (and optionally a log channel). Turn on Developer Mode in Discord (Settings → Advanced) so you can right-click to copy IDs. Make sure the bot's role is above the support role in Server Settings → Roles.
+3. **Prepare your server.** Create a support role (and optionally a log channel). Turn on Developer Mode in Discord (Settings → Advanced) so you can right-click to copy IDs. Then:
+   - Make the support role mentionable (Server Settings → Roles → the role → **Allow anyone to @mention this role**). The bot pings it in each new ticket, which is what adds the support team to the private thread.
+   - In the channel where the panel will go, let `@everyone` **View Channel** and **Send Messages in Threads**, but turn off **Send Messages** and **Create Public/Private Threads** so members can only use the panel.
+   - Give the support role **Manage Threads** in that channel so they can see every ticket thread.
 
 4. **Configure.** Copy `.env.example` to `.env` and fill in the values.
 

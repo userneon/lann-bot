@@ -10,38 +10,75 @@ const {
   StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
+  ThreadAutoArchiveDuration,
 } = require('discord.js');
 const config = require('./config');
 const categories = require('./categories');
 
-// The ticket owner's ID and category are stored in the channel topic so tickets survive
-// bot restarts without needing a database.
-const TOPIC_PATTERN = /^ticket-owner:(\d+):(\w+)/;
+// Tickets are private threads in the panel's channel. The owner's ID and the category are
+// written in the footer of the bot's first message in the thread, so tickets survive bot
+// restarts without needing a database. `tickets` caches them by thread ID.
+const FOOTER_PATTERN = /^ticket:(\d+):(\w+)$/;
 const COLOR = 0x5865f2;
+const tickets = new Map();
 
-// Tickets currently being created, to stop double-submits making two channels.
+// Tickets currently being created, to stop double-submits making two threads.
 const opening = new Set();
-// Channels currently being closed, so two close clicks don't post two transcripts.
+// Threads currently being closed, so two close clicks don't post two transcripts.
 const closing = new Set();
 
 function getCategory(key) {
   return categories.find((c) => c.key === key);
 }
 
-function parseTopic(channel) {
-  if (!channel || channel.parentId !== config.categoryId) return null;
-  const match = channel.topic?.match(TOPIC_PATTERN);
-  return match ? { ownerId: match[1], categoryKey: match[2] } : null;
+function isTicketThread(channel) {
+  return (
+    channel?.type === ChannelType.PrivateThread && channel.ownerId === channel.client.user.id
+  );
 }
 
-function getTicketOwnerId(channel) {
-  return parseTopic(channel)?.ownerId ?? null;
+// Returns { ownerId, categoryKey } if `channel` is a ticket thread, otherwise null.
+async function getTicket(channel) {
+  if (!isTicketThread(channel)) return null;
+  if (tickets.has(channel.id)) return tickets.get(channel.id);
+
+  // Not cached (e.g. after a restart): read it from the bot's first message in the thread.
+  const messages = await channel.messages.fetch({ after: channel.id, limit: 10 }).catch(() => null);
+  for (const m of messages?.values() ?? []) {
+    const match = m.author.id === channel.client.user.id && m.embeds[0]?.footer?.text.match(FOOTER_PATTERN);
+    if (match) {
+      const ticket = { ownerId: match[1], categoryKey: match[2] };
+      tickets.set(channel.id, ticket);
+      return ticket;
+    }
+  }
+  return null;
+}
+
+// Fills the cache with every open ticket so duplicate checks work after a restart.
+async function loadOpenTickets(guild) {
+  const { threads } = await guild.channels.fetchActiveThreads();
+  await Promise.all(threads.map((thread) => getTicket(thread)));
+  console.log(`Loaded ${tickets.size} open tickets.`);
+}
+
+function forgetTicket(threadId) {
+  tickets.delete(threadId);
+}
+
+function findOpenTicket(guild, userId, categoryKey) {
+  for (const [threadId, t] of tickets) {
+    if (t.ownerId !== userId || t.categoryKey !== categoryKey) continue;
+    const thread = guild.channels.cache.get(threadId);
+    if (thread && !thread.archived) return thread;
+  }
+  return null;
 }
 
 function isStaff(member) {
   return (
     member.roles.cache.has(config.supportRoleId) ||
-    member.permissions.has(PermissionFlagsBits.ManageChannels)
+    member.permissions.has(PermissionFlagsBits.ManageThreads)
   );
 }
 
@@ -110,13 +147,6 @@ function ticketModal(category) {
     );
 }
 
-function findOpenTicket(guild, userId, categoryKey) {
-  return guild.channels.cache.find((c) => {
-    const t = parseTopic(c);
-    return t?.ownerId === userId && t.categoryKey === categoryKey;
-  });
-}
-
 function ticketControls({ claimedBy } = {}) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -135,7 +165,7 @@ function ticketControls({ claimedBy } = {}) {
 
 // `answers` is a list of { label, value } from the category's form.
 async function openTicket(interaction, category, answers) {
-  const { guild, user } = interaction;
+  const { channel: parent, guild, user } = interaction;
 
   // Members can have one open ticket per category.
   const existing = findOpenTicket(guild, user.id, category.key);
@@ -149,64 +179,35 @@ async function openTicket(interaction, category, answers) {
 
   opening.add(lockKey);
   try {
-    const username = user.username.toLowerCase().replace(/[^a-z0-9-]/g, '') || user.id;
-    const channel = await guild.channels.create({
-      name: `${category.key}-${username}`.slice(0, 90),
-      type: ChannelType.GuildText,
-      parent: config.categoryId,
-      topic: `ticket-owner:${user.id}:${category.key} | ${category.label}`,
-      permissionOverwrites: [
-        { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-        {
-          id: user.id,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory,
-            PermissionFlagsBits.AttachFiles,
-            PermissionFlagsBits.EmbedLinks,
-          ],
-        },
-        {
-          id: config.supportRoleId,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory,
-            PermissionFlagsBits.AttachFiles,
-            PermissionFlagsBits.EmbedLinks,
-            PermissionFlagsBits.ManageMessages,
-          ],
-        },
-        {
-          id: interaction.client.user.id,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory,
-            PermissionFlagsBits.ManageChannels,
-            PermissionFlagsBits.EmbedLinks,
-            PermissionFlagsBits.AttachFiles,
-          ],
-        },
-      ],
+    const username = user.username.toLowerCase().replace(/[^a-z0-9-_.]/g, '') || user.id;
+    const thread = await parent.threads.create({
+      name: `${category.key}-${username}`.slice(0, 100),
+      type: ChannelType.PrivateThread,
+      // Only staff can add more people to the ticket.
+      invitable: false,
+      autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+      reason: `${category.label} ticket for ${user.tag}`,
     });
+    tickets.set(thread.id, { ownerId: user.id, categoryKey: category.key });
+    await thread.members.add(user.id);
 
     const embed = new EmbedBuilder()
       .setColor(COLOR)
       .setTitle(`${category.emoji} ${category.label}`)
       .setDescription(`Сайн байна уу ${user}, манай админ баг удахгүй тантай холбогдох болно.`)
       .addFields(answers.map((a) => ({ name: a.label, value: a.value })))
+      .setFooter({ text: `ticket:${user.id}:${category.key}` })
       .setTimestamp();
 
-    await channel.send({
+    // Mentioning the support role also adds its members to the private thread.
+    await thread.send({
       content: `${user} <@&${config.supportRoleId}>`,
       embeds: [embed],
       components: [ticketControls()],
       allowedMentions: { users: [user.id], roles: [config.supportRoleId] },
     });
 
-    return interaction.editReply(`Таны ticket үүслээ: ${channel}`);
+    return interaction.editReply(`Таны ticket үүслээ: ${thread}`);
   } finally {
     opening.delete(lockKey);
   }
@@ -234,26 +235,26 @@ async function buildTranscript(channel) {
     return `[${time} UTC] ${m.author.tag}: ${parts.filter(Boolean).join(' ')}`;
   });
 
-  const header = `Transcript of #${channel.name}\nTopic: ${channel.topic ?? ''}\n\n`;
+  const header = `Transcript of ${channel.name}\n\n`;
   return new AttachmentBuilder(Buffer.from(header + lines.join('\n'), 'utf8'), {
     name: `${channel.name}-transcript.txt`,
   });
 }
 
-async function closeTicket(channel, closedBy, reason = 'Шалтгаан заагаагүй') {
-  if (closing.has(channel.id)) return;
-  closing.add(channel.id);
+async function closeTicket(thread, closedBy, reason = 'Шалтгаан заагаагүй') {
+  if (closing.has(thread.id)) return;
+  closing.add(thread.id);
 
-  const ticket = parseTopic(channel);
+  const ticket = await getTicket(thread);
   const category = ticket && getCategory(ticket.categoryKey);
-  await channel.send(`🔒 ${closedBy} ticket-ийг хаалаа. Энэ суваг 5 секундын дараа устгагдана.`);
+  await thread.send(`🔒 ${closedBy} ticket-ийг хаалаа. Энэ thread 5 секундын дараа устгагдана.`);
 
-  const transcript = await buildTranscript(channel);
+  const transcript = await buildTranscript(thread);
   const embed = new EmbedBuilder()
     .setColor(0xed4245)
     .setTitle('Ticket хаагдлаа')
     .addFields(
-      { name: 'Ticket', value: channel.name, inline: true },
+      { name: 'Ticket', value: thread.name, inline: true },
       { name: 'Төрөл', value: category?.label ?? '-', inline: true },
       { name: 'Нээсэн', value: ticket ? `<@${ticket.ownerId}>` : '-', inline: true },
       { name: 'Хаасан', value: `${closedBy}`, inline: true },
@@ -262,31 +263,36 @@ async function closeTicket(channel, closedBy, reason = 'Шалтгаан заа�
     .setTimestamp();
 
   if (config.logChannelId) {
-    const logChannel = await channel.guild.channels.fetch(config.logChannelId).catch(() => null);
+    const logChannel = await thread.guild.channels.fetch(config.logChannelId).catch(() => null);
     if (logChannel?.isTextBased()) {
       await logChannel.send({ embeds: [embed], files: [transcript] }).catch(console.error);
     }
   }
 
   if (ticket) {
-    const owner = await channel.client.users.fetch(ticket.ownerId).catch(() => null);
+    const owner = await thread.client.users.fetch(ticket.ownerId).catch(() => null);
     // DMs fail if the user has them disabled; that's fine.
     await owner?.send({ embeds: [embed], files: [transcript] }).catch(() => {});
   }
 
   setTimeout(() => {
-    channel
+    thread
       .delete(`Ticket closed by ${closedBy.tag}`)
       .catch(console.error)
-      .finally(() => closing.delete(channel.id));
+      .finally(() => {
+        closing.delete(thread.id);
+        forgetTicket(thread.id);
+      });
   }, 5000);
 }
 
 module.exports = {
   getCategory,
-  getTicketOwnerId,
-  isStaff,
+  getTicket,
+  loadOpenTickets,
+  forgetTicket,
   findOpenTicket,
+  isStaff,
   panelMessage,
   categoryPrompt,
   ticketModal,

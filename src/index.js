@@ -3,6 +3,7 @@ const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const config = require('./config');
 const components = require('./components');
+const { loadOpenTickets, forgetTicket } = require('./tickets');
 
 const client = new Client({
   intents: [
@@ -21,9 +22,13 @@ for (const file of fs.readdirSync(commandsDir).filter((f) => f.endsWith('.js')))
   client.commands.set(command.data.name, command);
 }
 
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`Logged in as ${c.user.tag}`);
+  const guild = await c.guilds.fetch(config.guildId);
+  await loadOpenTickets(guild).catch(console.error);
 });
+
+client.on(Events.ThreadDelete, (thread) => forgetTicket(thread.id));
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
