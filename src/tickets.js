@@ -76,22 +76,45 @@ function panelMessage() {
   return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] };
 }
 
+// The ephemeral message a member gets after picking a ticket type, with a button that opens the form.
+function categoryPrompt(category) {
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setTitle(`${category.emoji} ${category.label}`)
+    .setDescription(category.description);
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket:form:${category.key}`)
+      .setLabel('Анкет бөглөх')
+      .setEmoji('📝')
+      .setStyle(ButtonStyle.Primary),
+  );
+  return { embeds: [embed], components: [row] };
+}
+
 function ticketModal(category) {
   return new ModalBuilder()
     .setCustomId(`ticket:submit:${category.key}`)
-    .setTitle(category.label)
+    .setTitle(category.formTitle ?? category.label)
     .addComponents(
-      category.questions.map((q) =>
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId(q.id)
-            .setLabel(q.label)
-            .setStyle(q.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-            .setMaxLength(q.style === 'paragraph' ? 1000 : 100)
-            .setRequired(true),
-        ),
-      ),
+      category.questions.map((q) => {
+        const input = new TextInputBuilder()
+          .setCustomId(q.id)
+          .setLabel(q.label)
+          .setStyle(q.style === 'paragraph' ? TextInputStyle.Paragraph : TextInputStyle.Short)
+          .setMaxLength(1000)
+          .setRequired(true);
+        if (q.placeholder) input.setPlaceholder(q.placeholder);
+        return new ActionRowBuilder().addComponents(input);
+      }),
     );
+}
+
+function findOpenTicket(guild, userId, categoryKey) {
+  return guild.channels.cache.find((c) => {
+    const t = parseTopic(c);
+    return t?.ownerId === userId && t.categoryKey === categoryKey;
+  });
 }
 
 function ticketControls({ claimedBy } = {}) {
@@ -115,10 +138,7 @@ async function openTicket(interaction, category, answers) {
   const { guild, user } = interaction;
 
   // Members can have one open ticket per category.
-  const existing = guild.channels.cache.find((c) => {
-    const t = parseTopic(c);
-    return t?.ownerId === user.id && t.categoryKey === category.key;
-  });
+  const existing = findOpenTicket(guild, user.id, category.key);
   if (existing) {
     return interaction.editReply(`Танд энэ төрлийн нээлттэй ticket байна: ${existing}`);
   }
@@ -266,7 +286,9 @@ module.exports = {
   getCategory,
   getTicketOwnerId,
   isStaff,
+  findOpenTicket,
   panelMessage,
+  categoryPrompt,
   ticketModal,
   ticketControls,
   openTicket,

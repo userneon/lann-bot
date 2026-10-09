@@ -1,9 +1,11 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const {
   getCategory,
+  findOpenTicket,
   getTicketOwnerId,
   isStaff,
   panelMessage,
+  categoryPrompt,
   ticketModal,
   ticketControls,
   openTicket,
@@ -16,9 +18,23 @@ module.exports = {
   'ticket:select': async (interaction) => {
     const category = getCategory(interaction.values[0]);
     if (!category) return;
-    await interaction.showModal(ticketModal(category));
+    const existing = findOpenTicket(interaction.guild, interaction.user.id, category.key);
+    if (existing) {
+      await interaction.reply({
+        content: `Танд энэ төрлийн нээлттэй ticket байна: ${existing}`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      await interaction.reply({ ...categoryPrompt(category), flags: MessageFlags.Ephemeral });
+    }
     // Reset the dropdown, otherwise picking the same option again does nothing.
     await interaction.message.edit(panelMessage()).catch(() => {});
+  },
+
+  'ticket:form': async (interaction, key) => {
+    const category = getCategory(key);
+    if (!category) return;
+    await interaction.showModal(ticketModal(category));
   },
 
   'ticket:submit': async (interaction, key) => {
