@@ -12,7 +12,7 @@ const {
   TextInputStyle,
   ThreadAutoArchiveDuration,
 } = require('discord.js');
-const config = require('./config');
+const settings = require('./settings');
 const categories = require('./categories');
 
 // Tickets are private threads in the panel's channel. The owner's ID and the category are
@@ -77,7 +77,7 @@ function findOpenTicket(guild, userId, categoryKey) {
 
 function isStaff(member) {
   return (
-    member.roles.cache.has(config.supportRoleId) ||
+    member.roles.cache.has(settings.supportRoleId) ||
     member.permissions.has(PermissionFlagsBits.ManageThreads)
   );
 }
@@ -166,6 +166,10 @@ function ticketControls({ claimedBy } = {}) {
 // `answers` is a list of { label, value } from the category's form.
 async function openTicket(interaction, category, answers) {
   const { channel: parent, guild, user } = interaction;
+  const { supportRoleId } = settings;
+  if (!supportRoleId) {
+    return interaction.editReply('Ticket систем тохируулагдаагүй байна. Админ `/ticket-setup` командыг ажиллуулна уу.');
+  }
 
   // Members can have one open ticket per category.
   const existing = findOpenTicket(guild, user.id, category.key);
@@ -201,10 +205,10 @@ async function openTicket(interaction, category, answers) {
 
     // Mentioning the support role also adds its members to the private thread.
     await thread.send({
-      content: `${user} <@&${config.supportRoleId}>`,
+      content: `${user} <@&${supportRoleId}>`,
       embeds: [embed],
       components: [ticketControls()],
-      allowedMentions: { users: [user.id], roles: [config.supportRoleId] },
+      allowedMentions: { users: [user.id], roles: [supportRoleId] },
     });
 
     return interaction.editReply(`Таны ticket үүслээ: ${thread}`);
@@ -262,8 +266,8 @@ async function closeTicket(thread, closedBy, reason = 'Шалтгаан зааг
     )
     .setTimestamp();
 
-  if (config.logChannelId) {
-    const logChannel = await thread.guild.channels.fetch(config.logChannelId).catch(() => null);
+  if (settings.logChannelId) {
+    const logChannel = await thread.guild.channels.fetch(settings.logChannelId).catch(() => null);
     if (logChannel?.isTextBased()) {
       await logChannel.send({ embeds: [embed], files: [transcript] }).catch(console.error);
     }

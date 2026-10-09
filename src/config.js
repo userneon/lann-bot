@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const required = ['DISCORD_TOKEN', 'CLIENT_ID', 'GUILD_ID', 'SUPPORT_ROLE_ID'];
+const required = ['DISCORD_TOKEN', 'CLIENT_ID', 'GUILD_ID'];
 const missing = required.filter((key) => !process.env[key]);
 
 if (missing.length) {
@@ -13,6 +13,4 @@ module.exports = {
   token: process.env.DISCORD_TOKEN,
   clientId: process.env.CLIENT_ID,
   guildId: process.env.GUILD_ID,
-  supportRoleId: process.env.SUPPORT_ROLE_ID,
-  logChannelId: process.env.TICKET_LOG_CHANNEL_ID || null,
 };

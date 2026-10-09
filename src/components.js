@@ -11,6 +11,7 @@ const {
   openTicket,
   closeTicket,
 } = require('./tickets');
+const settings = require('./settings');
 
 // Handlers for dropdowns, buttons and modals, keyed by the first two parts of the customId
 // ("ticket:submit:unban" is handled by "ticket:submit" with arg "unban").
@@ -19,7 +20,12 @@ module.exports = {
     const category = getCategory(interaction.values[0]);
     if (!category) return;
     const existing = findOpenTicket(interaction.guild, interaction.user.id, category.key);
-    if (existing) {
+    if (!settings.supportRoleId) {
+      await interaction.reply({
+        content: 'Ticket систем тохируулагдаагүй байна. Админ `/ticket-setup` командыг ажиллуулна уу.',
+        flags: MessageFlags.Ephemeral,
+      });
+    } else if (existing) {
       await interaction.reply({
         content: `Танд энэ төрлийн нээлттэй ticket байна: ${existing}`,
         flags: MessageFlags.Ephemeral,
